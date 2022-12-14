@@ -1,5 +1,6 @@
 (ns ricci.tensor
-  (:require [clojure.core.match :refer [match]]))
+  (:require [clojure.core.match :refer [match]]
+            [ricci.derivative]))
 
 (defmacro define [name & values]
   (let [topname (first (flatten (list name)))
