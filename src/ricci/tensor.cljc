@@ -2,7 +2,9 @@
   (:require [clojure.core.match :refer [match]]
             [ricci.derivative]))
 
-(defmacro define [name & values]
+(defmacro define
+  "Scheme-style curried define"
+  [name & values]
   (let [topname (first (flatten (list name)))
         docstr  (and (> (count values) 1)
                      (string? (first values))
@@ -11,13 +13,13 @@
            name   name
            values values]
       (match name
-        ([fname & args] :seq)
-        (recur (inc level)
-               fname
-               `((fn ~(gensym (str topname "-level" level "-"))
-                   [~@args]
-                   ~@values))),
-        _ `(def ~name ~@(if docstr [docstr]) ~@values)))))
+             ([fname & args] :seq)
+             (recur (inc level)
+                    fname
+                    `((fn ~(gensym (str topname "-level" level "-"))
+                        [~@args]
+                        ~@values))),
+             _ `(def ~name ~@(if docstr [docstr]) ~@values)))))
 
 ;; "smart index" tensor design
 ;; multi-index
@@ -35,16 +37,27 @@
 ;; symbolic ricci calculus ≈
 ;; tensor algebra over field of elementary functions with N indeterminates
 
-(defn ensure-map [mp]
+(defn ensure-map
+  "Convert array-like containers to maps from index -> value"
+  [mp]
   (if (vector? mp)
     (into {} (map-indexed vector mp))
     mp))
-(defn keys [mp]
+
+(defn keys
+  "A version of keys that can work on vectors"
+  [mp]
   (clojure.core/keys (ensure-map mp)))
-(defn vals [mp]
+(defn vals
+  "A version of vals that can work on vectors"
+  [mp]
   (clojure.core/vals (ensure-map mp)))
 
-(defn map-keys [f mp]
+(defn map-keys
+  "Map a function across a dictionary's keys.
+
+  (map-keys inc {0 'a, 1 'b}) => {1 'a, 2 'b}"
+  [f mp]
   (into {}
         (map (fn [[k v]] [(f k) v])
              (ensure-map mp))))
