@@ -141,8 +141,10 @@
      (.-dimension A)
      (mapv + (.-type A) (.-type B))
      (fn [[Up Dn]]
-       (let [[UpA UpB] (split-with (fn [[key _]] (< key uplen)) Up)
-             [DnA DnB] (split-with (fn [[key _]] (< key dnlen)) Dn)]
+       (let [[UpA UpB-] (split-with (fn [[key _]] (< key uplen)) Up)
+             [DnA DnB-] (split-with (fn [[key _]] (< key dnlen)) Dn)
+             UpB (map-keys #(- % uplen) UpB-)
+             DnB (map-keys #(- % dnlen) DnB-)]
          (* (unsliced-get A [UpA DnA])
             (unsliced-get B [UpB DnB])))))))
 
