@@ -63,6 +63,14 @@
   (#?(:clj invoke :cljs -invoke)
     [this doublet]
     (slice this doublet)))
+(defn dimension [tensor] (.-dimension tensor))
+(defn tensor? [tensor] (instance? Tensor tensor))
+(defn tensor-type [tensor]
+  (if (tensor? tensor) (.-type tensor)
+      [0 0]))
+(defn scalar? [s]
+  (= (tensor-type s) [0 0]))
+
 
 (defn doublet-type [doublet] (mapv count doublet))
 (assert (= [0 0] (doublet-type [{} {}])))
