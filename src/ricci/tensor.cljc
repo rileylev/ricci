@@ -65,6 +65,9 @@
            '{1 a, 2 b, 3 c}))
 
 (declare slice)
+;;; TODO: change this to TBox? TensorNonField? NonTensor?
+;;; These may not transform like tensors, but
+;;; they are multilinear maps on something somewhere
 (deftype Tensor [dimension type unsliced-getter]
   clojure.lang.IFn
   (#?(:clj invoke :cljs -invoke)
@@ -83,7 +86,7 @@
 (assert (= [0 0] (doublet-type [{} {}])))
 (assert (= [3 0] (doublet-type [{0 1, 1 1, 2 1} {}])))
 (defn full-doublet-for? [tensor doublet]
-  (= (.-type tensor) (doublet-type doublet)))
+  (= (tensor-type tensor) (doublet-type doublet)))
 
 (defn unsliced-get [tensor doublet]
   (let [doublet (mapv ensure-map doublet)]
@@ -107,20 +110,22 @@
   (let [shift (slice-multi-shift len multi)]
     (merge (map-keys shift new-multi)
            multi)))
-(assert (= (slice-multi 5 {0 0} {0 'a 1 'b})
+(assert (= (slice-merge-multi 5 {0 0} {0 'a 1 'b})
            '{1 a, 2 b, 0 0}))
 
 (defn slice-merge-doublet [type old new]
   (mapv slice-merge-multi type old new))
 
-(defn slice [tensor [up  down  :as doublet]]
-  (if (full-doublet-for?  tensor doublet)
-    (unsliced-get tensor doublet)
-    (Tensor.
-     (.-dimension tensor)
-     (mapv - (.-type tensor) (doublet-type doublet))
-     (fn [new-doublet]
-       (slice-merge-doublet (.-type tensor) doublet new-doublet)))))
+(defn ensure-doublet [doublet] (mapv ensure-map doublet))
+(defn slice [tensor doublet]
+  (let [doublet (ensure-doublet doublet)]
+    (if (full-doublet-for?  tensor doublet)
+      (unsliced-get tensor doublet)
+      (Tensor.
+       (dimension tensor)
+       (mapv - (tensor-type tensor) (doublet-type doublet))
+       (fn [new-doublet]
+         (slice-merge-doublet (tensor-type tensor) doublet new-doublet))))))
 
 (define ((face N) x)
   "The N-th face map for the standard ordered simplex"
@@ -129,24 +134,30 @@
 (defn index-insert-at [index axis value]
   (into {axis value}
         (map-keys (face axis) index)))
+
+(defn do-Σ [dim term]
+  (apply + (map term (range dim))))
+(defmacro Σ [dim dummies & body]
+  (match [dummies]
+         [[]] 0
+         [[n & rest]] `(do-Σ ~dim (fn [~n] (Σ ~dim ~rest ~@body)))))
+
 (defn contract1 [tensor up-axis down-axis]
   (Tensor.
-   (.-dimension tensor)
-   (mapv dec (.-type tensor))
+   (dimension tensor)
+   (mapv dec (tensor-type tensor))
    (fn [[up down]]
-     (apply +
-            (map
-             #(unsliced-get tensor
-                            [(index-insert-at up   up-axis   %)
-                             (index-insert-at down down-axis %)])
-             (range (.-dimension tensor)))))))
+     (Σ (dimension tensor) [n]
+        (unsliced-get tensor
+                      [(index-insert-at up   up-axis   n)
+                       (index-insert-at down down-axis n)])))))
 
 (defn ⊗ [A B]
-  (assert (= (.-dimension A) (.-dimension B)))
-  (let [[uplen dnlen] (.-type A)]
+  {:pre [(= (dimension A) (dimension B))]}
+  (let [[uplen dnlen] (tensor-type A)]
     (Tensor.
-     (.-dimension A)
-     (mapv + (.-type A) (.-type B))
+     (dimension A)
+     (mapv + (tensor-type A) (tensor-type B))
      (fn [[Up Dn]]
        (let [[UpA UpB-] (split-with (fn [[key _]] (< key uplen)) Up)
              [DnA DnB-] (split-with (fn [[key _]] (< key dnlen)) Dn)
@@ -162,54 +173,56 @@
   (Tensor.
    dim
    [0 2]
-   (fn [[_ {i 0, j 1}]]
+   (fn [[{} {i 0, j 1}]]
      (if (= i j) 1 0))))
 
-((euclidean-metric 3) [{} {0 0, 1 0}])
+((euclidean-metric 3) [[] [0 0]])
 ((euclidean-metric 3) [[] [1 1]])
+
 
 (def polar
   (Tensor.
    2
    [0 2]
-   {[{} {0 0, 1 0}] 1
-    [{} {0 1, 1 1}] [:x 0]}))
+   (map-keys ensure-doublet
+             {[[] [0 0]] 1
+              [[] [1 1]] [:x 0]})))
 
 
-(polar [{}  {0 0, 1 0} ])
-(polar [{}  {0 1, 1 1} ])
+(polar [[] [0 0]])
+(polar [[] [1 1]])
 
 (def round
   (Tensor.
    2
    [0 2]
-   {[{} {0 0, 1 0}] 1
-    [{} {0 1, 1 1}] '(pow (sin [:x 0]) 2)}))
+   (map-keys ensure-doublet
+             {[[] [0 0]] 1
+              [[] [1 1]] '(pow (sin [:x 0]) 2)})))
 
-((∂ 0) (round [{} {0 1, 1 1}]))
 ((∂ 0) (round [[] [1 1]]))
 
 (def upper-half-plane
   (Tensor.
    2
    [0 2]
-   {[{} {0 0, 1 0}] '(pow [:x 0] -2)
-    [{} {0 1, 1 1}] '(pow [:x 0] -2)}))
+   (map-keys ensure-doublet
+             {[[] [0 0]] '(pow [:x 0] -2)
+              [[] [1 1]] '(pow [:x 0] -2)})))
 (def poincare-disk
   (Tensor.
    2
    [0 2]
-   {[{} {0 0, 1 0}] '(/ (+ (pow [:x 0] 2) (pow [:x 1] 2)))
-    [{} {0 1, 1 1}] '(/ (+ (pow [:x 0] 2) (pow [:x 1] 2)))}))
+   (map-keys ensure-doublet
+             {[[] [0 0]] '(/ (+ (pow [:x 0] 2) (pow [:x 1] 2)))
+              [[] [1 1]] '(/ (+ (pow [:x 0] 2) (pow [:x 1] 2)))})))
 
+((∂ 0) (upper-half-plane [[] [0 0]]))
+((∂ 1) (upper-half-plane [[] [0 0]]))
+((∂ 0) (upper-half-plane [[] [1 1]]))
 
-
-
-((∂ 0) (upper-half-plane [{} {0 0, 1 0}]))
-((∂ 1) (upper-half-plane [{} {0 0, 1 0}]))
-
-((∂ 0) (poincare-disk [{} {0 0, 1 0}]))
-((∂ 1) (poincare-disk [{} {0 0, 1 0}]))
+((∂ 0) (poincare-disk [[] [0 0]]))
+((∂ 1) (poincare-disk [[] [0 0]]))
 
 
 (defn christoffel-first-kind [g a b c]
@@ -225,7 +238,7 @@
 
 (defn Γ1st [g]
   (Tensor.
-   (.-dimension g)
+   (dimension g)
    [0 3]
    (fn [[{} I]]
      (christoffel-first-kind g (I 0) (I 1) (I 2)))))
