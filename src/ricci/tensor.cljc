@@ -64,13 +64,6 @@
 (assert (= (map-keys inc {0 'a, 1 'b, 2 'c})
            '{1 a, 2 b, 3 c}))
 
-(defn map-vals [f mp]
-  (into {}
-        (map (fn [[k v]] [k (f v)])
-             (ensure-map mp))))
-(assert (= (map-vals inc {'a 0, 'b 1, 'c 2})
-           '{a 1, b 2, c 3}))
-
 (declare slice)
 (deftype Tensor [dimension type unsliced-getter]
   clojure.lang.IFn
