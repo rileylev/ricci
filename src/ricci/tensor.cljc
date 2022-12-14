@@ -216,3 +216,27 @@
 (round [[] [1 1]])
 
 ((Γ1st round) [[] [0 1 1]])
+
+(defn t+ [A B]
+  {:pre [(= (dimension A) (dimension B))
+         (= (tensor-type A) (tensor-type B))]}
+  (Tensor.
+   (dimension A)
+   (tensor-type A)
+   (fn [doublet]
+     (+ (A doublet) (B doublet)))))
+(defn t- [A]
+  (Tensor.
+   (dimension A)
+   (tensor-type A)
+   (fn [doublet]
+     (- (A doublet)))))
+
+(defn scale [scalar tensor]
+  {:pre [(scalar? scalar)
+         (tensor? tensor)]}
+  (Tensor.
+   (dimension tensor)
+   (tensor-type tensor)
+   (fn [doublet]
+     (* scalar (tensor doublet)))))
