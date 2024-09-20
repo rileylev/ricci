@@ -1,6 +1,7 @@
 (ns ricci.tensor
   (:require [clojure.core.match :refer [match]]
-            [ricci.derivative]))
+            [ricci.derivative]
+            [clojure.test :as test]))
 
 (defmacro define
   "Scheme-style curried define"
@@ -61,8 +62,8 @@
   (into {}
         (map (fn [[k v]] [(f k) v])
              (ensure-map mp))))
-(assert (= (map-keys inc {0 'a, 1 'b, 2 'c})
-           '{1 a, 2 b, 3 c}))
+(test/is (= (map-keys inc {0 'a, 1 'b, 2 'c})
+            '{1 a, 2 b, 3 c}))
 
 (declare slice)
 ;;; TODO: change this to TBox? TensorNonField? NonTensor?
@@ -83,8 +84,8 @@
 
 
 (defn doublet-type [doublet] (mapv count doublet))
-(assert (= [0 0] (doublet-type [{} {}])))
-(assert (= [3 0] (doublet-type [{0 1, 1 1, 2 1} {}])))
+(test/is (= [0 0] (doublet-type [{} {}])))
+(test/is (= [3 0] (doublet-type [{0 1, 1 1, 2 1} {}])))
 (defn full-doublet-for? [tensor doublet]
   (= (tensor-type tensor) (doublet-type doublet)))
 
@@ -97,21 +98,21 @@
 (defn missing-from-multi [len multi]
   (clojure.set/difference (into #{} (range len))
                           (into #{} (keys multi))))
-(assert (= (missing-from-multi 5 {0 0, 3 3})
+(test/is (= (missing-from-multi 5 {0 0, 3 3})
            #{1 2 4}))
 
 (defn slice-multi-shift [len multi]
   (let [missing (missing-from-multi len multi)]
     (into [] (sort missing))))
-(assert (= (slice-multi-shift 5 {0 0 3 3})
+(test/is (= (slice-multi-shift 5 {0 0 3 3})
            [1 2 4]))
 
 (defn slice-merge-multi [len multi new-multi]
   (let [shift (slice-multi-shift len multi)]
     (merge (map-keys shift new-multi)
            multi)))
-(assert (= (slice-merge-multi 5 {0 0} {0 'a 1 'b})
-           '{1 a, 2 b, 0 0}))
+(test/is (= (slice-merge-multi 5 {0 0} {0 'a 1 'b})
+            '{1 a, 2 b, 0 0}))
 
 (defn slice-merge-doublet [type old new]
   (mapv slice-merge-multi type old new))
@@ -131,6 +132,11 @@
   "The N-th face map for the standard ordered simplex"
   (if (< x N) x
       (inc x)))
+(test/is (= (map (face 0) '(0 1 2 3)) '(1 2 3 4)))
+(test/is (= (map (face 2) '(0 1 2 3)) '(0 1 3 4)))
+(test/is (= (map (face 3) '(0 1 2 3)) '(0 1 2 4)))
+(test/is (= (map (face 4) '(0 1 2 3)) '(0 1 2 3)))
+
 (defn index-insert-at [index axis value]
   (into {axis value}
         (map-keys (face axis) index)))
